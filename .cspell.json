@@ -1,0 +1,8 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "useGitignore": true,
+  "dictionaries": ["bash", "python", "softwareTerms"],
+  "ignorePaths": ["uv.lock"],
+  "words": ["homelab", "plexapi", "pydantic", "pyjwt", "scryer", "unmonitor", "watchlist"]
+}

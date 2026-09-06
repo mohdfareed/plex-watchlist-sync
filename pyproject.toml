@@ -1,0 +1,29 @@
+[project]
+name = "plex-watchlist-sync"
+version = "0.1.0"
+description = "Personal Plex watchlist requests and trash-list deletion through Scryer."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "PlexAPI>=4.18.2,<5",
+    "PyJWT[crypto]>=2.13,<3",
+    "requests>=2.34,<3",
+    "pydantic-settings>=2.13,<3",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "watchlist_sync"
+
+[dependency-groups]
+dev = ["ruff>=0.15"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "RUF"]

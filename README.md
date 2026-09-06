@@ -8,3 +8,15 @@ Small, single-user automation for a homelab:
   deletion.
 
 **Note:** Media operations belong to Scryer and Weaver.
+
+## Development
+
+Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/).
+
+```sh
+uv sync --locked
+uv run --locked python -m watchlist_sync
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv build
+```
