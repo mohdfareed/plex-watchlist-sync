@@ -1,45 +1,54 @@
-"""Load configuration and initialize application logging."""
+"""Authenticate with Plex and display the current watchlist."""
 
 import logging
-import sys
 
+from plexapi.exceptions import PlexApiException
 from pydantic import ValidationError
+from requests import RequestException
 
-from app.settings import Settings
+from app.plex.auth import AuthenticationError, with_authentication
+from app.plex.lists import read_watchlist
+from app.settings import load_settings
 
-# read name from pyproject.toml (uv)
-app_name = "plex-watchlist-sync"
-logger = logging.getLogger(app_name)
+logger = logging.getLogger(__package__)
 
 
 def main() -> int:
-    # Start logging before validation so configuration failures are visible.
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        stream=sys.stdout,
-    )
-
-    # Report invalid fields without including their supplied values.
     try:
-        settings = Settings()
-    except ValidationError as error:
-        for issue in error.errors(include_input=False, include_context=False, include_url=False):
-            field = ".".join(str(part) for part in issue["loc"]).upper()
-            logger.error("%s: %s", field, issue["msg"])
+        settings = load_settings(logger)
+    except ValidationError:
         return 1
 
-    # Configure our verbosity without exposing library HTTP/auth diagnostics.
-    logger.setLevel(settings.log_level)
-    logging.getLogger("plexapi").disabled = True
-    logging.getLogger("requests").setLevel(logging.CRITICAL)
-    logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+    try:
+        # Print the Plex scope as supplied, without requesting or changing anything.
+        watchlist = with_authentication(settings, read_watchlist)
+        for item in watchlist:
+            logger.info(
+                "%s: %s (%s)",
+                item.type,  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+                item.title,  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+                item.year or "unknown year",  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+            )
 
-    logger.info(
-        "Configuration loaded; polling interval is %g seconds.",
-        settings.sync_interval_seconds,
-    )
-    return 0
+    # Handle authentication failures.
+    except AuthenticationError as error:
+        logger.error("%s", error)
+        return 1
+
+    # Handle library exceptions, hiding request URLs, tokens, or response bodies.
+    except (PlexApiException, RequestException, OSError, ValueError) as error:
+        logger.error(
+            "Plex startup failed (%s). Check connectivity and the authentication directory.",
+            type(error).__name__,
+        )
+        return 1
+
+    # Handle user-initiated termination without a traceback.
+    except KeyboardInterrupt:
+        logger.info("Stopped.")
+        return 130
+
+    return 0  # Controlled shutdown without error.
 
 
 if __name__ == "__main__":

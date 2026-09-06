@@ -16,8 +16,8 @@ Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/).
 ```sh
 uv sync --locked
 uv run --locked python -m app
-uv run --locked ruff check .
-uv run --locked ruff format --check .
+uv run --locked ruff check app
+uv run --locked ruff format --check app
 uv build
 ```
 
@@ -33,11 +33,22 @@ Set environment variables before starting the process:
 Logs go to stdout. Invalid settings report the affected field and exit with
 code 1.
 
+## Plex authentication
+
+On first run, open the authorization link printed in the logs and sign in to
+Plex. Pairing waits up to two minutes.
+
+Device identity, signing keys, and the token are stored under `CONFIG_DIR/plex`.
+Keep this directory private. Saved authentication is reused on subsequent runs;
+expiring tokens are refreshed.
+
+To authorize again after revoking access, remove its `token` file and restart.
+
 ## Container
 
 ```sh
 docker compose -f docker/compose.yaml build
-docker compose -f docker/compose.yaml run --rm watchlist-sync
+docker compose -f docker/compose.yaml run --rm plex-watchlist-sync
 ```
 
 Keep the `/config` volume to retain Plex authentication across container updates.

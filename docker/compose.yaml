@@ -1,7 +1,7 @@
 name: plex-watchlist-sync
 
 services:
-  watchlist-sync:
+  plex-watchlist-sync:
     build:
       context: ${WATCHLIST_SYNC_BUILD_CONTEXT:-..}
       dockerfile: docker/Dockerfile
