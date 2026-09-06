@@ -1,4 +1,4 @@
-# Plex watchlist sync
+# plex-watchlist-sync
 
 Small, single-user automation for a homelab:
 
@@ -15,11 +15,23 @@ Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv sync --locked
-uv run --locked python -m watchlist_sync
+uv run --locked python -m app
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv build
 ```
+
+## Configuration
+
+Set environment variables before starting the process:
+
+- `CONFIG_DIR`: authentication directory; defaults to `/config` in the container.
+  Override it with a writable directory when running locally.
+- `LOG_LEVEL`: `DEBUG`, `INFO` (default), `WARNING`, `ERROR`, or `CRITICAL`.
+- `SYNC_INTERVAL_SECONDS`: seconds between polls; defaults to `30`, minimum `1`.
+
+Logs go to stdout. Invalid settings report the affected field and exit with
+code 1.
 
 ## Container
 

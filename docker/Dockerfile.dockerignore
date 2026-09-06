@@ -3,7 +3,7 @@
 !pyproject.toml
 !uv.lock
 !README.md
-!watchlist_sync/
-!watchlist_sync/**
+!app/
+!app/**
 **/__pycache__/
 **/*.py[cod]
