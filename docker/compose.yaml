@@ -1,0 +1,14 @@
+name: plex-watchlist-sync
+
+services:
+  watchlist-sync:
+    build:
+      context: ${WATCHLIST_SYNC_BUILD_CONTEXT:-..}
+      dockerfile: docker/Dockerfile
+
+    volumes:
+      - state:/config
+    # REVIEW: Set restart: unless-stopped when the long-running worker is implemented.
+
+volumes:
+  state:

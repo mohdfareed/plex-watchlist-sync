@@ -17,6 +17,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "watchlist_sync"
+module-root = ""
 
 [dependency-groups]
 dev = ["ruff>=0.15"]

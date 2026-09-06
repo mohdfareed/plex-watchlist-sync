@@ -8,8 +8,9 @@
 - No automated tests, test dependencies, or scaffolding unless requested.
 - Use uv and Ruff. Validate with lint/format checks, builds, and manual checks.
 - Compose builds directly from Git. No registry or publishing pipeline.
-- Use `src/watchlist_sync` and the `python -m watchlist_sync` entrypoint.
-- Docker runs as UID/GID 10001 with persistent state in `/config`.
+- Keep the package at `watchlist_sync/` and container files at `docker/`.
+  Use the `python -m watchlist_sync` entrypoint.
+- Docker runs as UID/GID 10001 with persistent authentication in `/config`.
   No media mounts or inbound ports.
 - Do not deploy, publish, or mutate live service data without explicit approval.
 
@@ -18,8 +19,9 @@
 - Watchlist addition → Scryer request for the entire exposed movie/show.
 - Watchlist removal → unmonitor.
 - Trash-playlist addition → unmonitor the scope and request deletion.
-- Process existing contents on first startup, then act on list changes.
-- Membership persistence is undecided. Do not implement it without approval.
+- Process existing contents on every startup, then poll for list changes.
+- Non-auth state is only the last snapshot of each list, held in memory.
+  No persisted membership, activity history, or pending-work journal.
 - No continuous enforcement, blanket episode resets, or list-priority machinery.
 - Complete trash selections may become season/show operations based on current
   Plex membership.
