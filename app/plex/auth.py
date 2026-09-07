@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from threading import Event
 from typing import Callable
 from uuid import uuid4
 
@@ -61,13 +62,20 @@ def _load_login(directory: Path, session: Session) -> MyPlexJWTLogin:
     return login
 
 
-def _pair(login: MyPlexJWTLogin) -> None:
+def _pair(login: MyPlexJWTLogin, stop: Event) -> None:
     # Display the short-lived authorization link, never the resulting token or keys.
-    login.run()  # pyright: ignore[reportUnknownMemberType]
-
     try:
+        login.run()  # pyright: ignore[reportUnknownMemberType]
         url = login.oauthUrl()  # pyright: ignore[reportUnknownMemberType]
         logger.warning("Authorize Plex in your browser: %s", url)
+
+        # Wake on shutdown rather than waiting for the whole pairing timeout.
+        while not login.finished:
+            if stop.wait(login.POLLINTERVAL):
+                raise InterruptedError("Plex pairing cancelled")
+
+        if stop.is_set():
+            raise InterruptedError("Plex pairing cancelled")
 
         if not login.waitForLogin():
             raise AuthenticationError(
@@ -77,28 +85,34 @@ def _pair(login: MyPlexJWTLogin) -> None:
         login.stop()
 
 
-def authenticate(config_dir: Path, session: Session) -> MyPlexAccount:
+def authenticate(config_dir: Path, session: Session, stop: Event) -> MyPlexAccount:
     """Authenticate with saved credentials, or wait for browser authorization."""
     directory = config_dir / "plex"
     login = _load_login(directory, session)
 
     # Pair a new device, or refresh an existing token when PlexAPI says it is due.
     if not login.jwtToken:  # pyright: ignore[reportUnknownMemberType]
-        _pair(login)
+        _pair(login, stop)
     elif not login.verifyJWT():
         login.refreshJWT()
 
-    # Verify the credential and account before replacing the saved token.
+    # Resolve the token to the account.
     token = login.jwtToken  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     if not isinstance(token, str) or not token.strip():
         raise AuthenticationError(
             "Plex pairing did not complete. Check connectivity and run the app again."
         )
+
+    # Verify the credential and account before replacing the saved token.
     if not token or not login.verifyJWT(refreshWithinDays=0):
         raise AuthenticationError(
             "Plex token verification failed; saved credentials were retained."
         )
 
+    if stop.is_set():
+        raise InterruptedError("Plex authentication cancelled")
+
+    # Verify the token and store it atomically.
     account = MyPlexAccount(token=token, session=session)
     token_path = directory / "token"
     temporary_path = directory / "token.tmp"
@@ -108,10 +122,14 @@ def authenticate(config_dir: Path, session: Session) -> MyPlexAccount:
     return account
 
 
-def with_authentication[T](settings: Settings, func: Callable[[MyPlexAccount], T]) -> T:
+def with_authentication[T](
+    settings: Settings, func: Callable[[MyPlexAccount], T], stop: Event
+) -> T:
     """Run the given function with an authenticated Plex account."""
     with Session() as session:
-        account = authenticate(settings.config_dir, session)
+        account = authenticate(settings.config_dir, session, stop)
+        if stop.is_set():
+            raise InterruptedError("Plex read cancelled")
 
         username: str = str(account.username or "<token>")  # pyright: ignore
         logger.info("Authenticated with Plex using account: %s", username)

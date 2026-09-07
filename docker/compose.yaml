@@ -5,13 +5,13 @@ services:
     build:
       context: ${WATCHLIST_SYNC_BUILD_CONTEXT:-..}
       dockerfile: docker/Dockerfile
-
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-30}
     volumes:
       - state:/config
-    # REVIEW: Set restart: unless-stopped when the long-running worker is implemented.
+    restart: unless-stopped
+    stop_grace_period: 1m
 
 volumes:
   state:

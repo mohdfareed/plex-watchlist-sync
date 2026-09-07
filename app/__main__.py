@@ -1,49 +1,37 @@
-"""Authenticate with Plex and display the current watchlist."""
+"""Initialize the application and report its exit status."""
 
 import logging
 
-from plexapi.exceptions import PlexApiException
 from pydantic import ValidationError
-from requests import RequestException
 
-from app.plex.auth import AuthenticationError, with_authentication
-from app.plex.lists import read_watchlist
+from app.plex.auth import AuthenticationError
 from app.settings import load_settings
+from app.sync import sync_plex
+from app.worker import run
 
 logger = logging.getLogger(__package__)
 
 
 def main() -> int:
-    try:
+    try:  # Load and validate settings.
         settings = load_settings(logger)
     except ValidationError:
         return 1
 
-    try:
-        # Print the Plex scope as supplied, without requesting or changing anything.
-        watchlist = with_authentication(settings, read_watchlist)
-        for item in watchlist:
-            logger.info(
-                "%s: %s (%s)",
-                item.type,  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-                item.title,  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-                item.year or "unknown year",  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-            )
+    try:  # Run the main worker.
+        run(lambda stop: sync_plex(settings, stop), settings)
 
     # Handle authentication failures.
     except AuthenticationError as error:
         logger.error("%s", error)
         return 1
 
-    # Handle library exceptions, hiding request URLs, tokens, or response bodies.
-    except (PlexApiException, RequestException, OSError, ValueError) as error:
-        logger.error(
-            "Plex startup failed (%s). Check connectivity and the authentication directory.",
-            type(error).__name__,
-        )
+    # Report fatal errors without exposing request URLs, tokens, or response bodies.
+    except Exception as error:
+        logger.error("Worker failed (%s).", type(error).__name__)
         return 1
 
-    # Handle user-initiated termination without a traceback.
+    # Cover Ctrl+C outside the worker's signal-handling window.
     except KeyboardInterrupt:
         logger.info("Stopped.")
         return 130

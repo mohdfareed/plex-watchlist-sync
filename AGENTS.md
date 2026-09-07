@@ -31,6 +31,8 @@
 ## Code and documentation
 
 - Organize by concrete responsibility. No speculative interfaces or wrappers.
+- Keep `worker.py` limited to app lifecycle plumbing. Put sync business logic in
+  `sync.py` and wire it into the worker in `__main__.py`.
 - Use descriptive names, type hints, guard clauses, and a readable happy path.
 - Separate meaningful steps with whitespace and recipe-style comments.
 - Keep code within 100 columns and Markdown within 80. Keep files small.

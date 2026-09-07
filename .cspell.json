@@ -15,9 +15,11 @@
     "keypair",
     "myplex",
     "plexapi",
+    "POLLINTERVAL",
     "pydantic",
     "pyjwt",
     "scryer",
+    "signum",
     "unmonitor",
     "watchlist"
   ]
