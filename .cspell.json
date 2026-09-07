@@ -2,15 +2,13 @@
   "version": "0.2",
   "language": "en",
   "useGitignore": true,
-  "dictionaries": [
-    "bash",
-    "python",
-    "softwareTerms"
-  ],
-  "ignorePaths": [
-    "uv.lock"
-  ],
+  "dictionaries": ["bash", "python", "softwareTerms"],
+  "ignorePaths": ["uv.lock"],
   "words": [
+    "tmdb",
+    "tvdb",
+    "imdb",
+    "guids",
     "homelab",
     "keypair",
     "myplex",

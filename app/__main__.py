@@ -5,6 +5,7 @@ import logging
 from pydantic import ValidationError
 
 from app.plex.auth import AuthenticationError
+from app.plex.events import ChangeDetector, StateError
 from app.settings import load_settings
 from app.sync import sync_plex
 from app.worker import run
@@ -15,14 +16,15 @@ logger = logging.getLogger(__package__)
 def main() -> int:
     try:  # Load and validate settings.
         settings = load_settings(logger)
-    except ValidationError:
+    except ValidationError, OSError:
         return 1
 
     try:  # Run the main worker.
-        run(lambda stop: sync_plex(settings, stop), settings)
+        changes = ChangeDetector(settings.config_dir / "state.json")
+        run(lambda stop: sync_plex(settings, stop, changes), settings)
 
-    # Handle authentication failures.
-    except AuthenticationError as error:
+    # Report actionable authentication/state failures without exposing credentials.
+    except (AuthenticationError, StateError) as error:
         logger.error("%s", error)
         return 1
 

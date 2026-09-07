@@ -1,12 +1,13 @@
 """Runtime configuration, validation, and initialization."""
 
 import logging
-import sys
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, ValidationError
+from pydantic import AnyHttpUrl, Field, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.logging import setup_console_logging, setup_file_logging
 
 
 class Settings(BaseSettings):
@@ -14,21 +15,33 @@ class Settings(BaseSettings):
 
     config_dir: Path = Path("/config")
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
-    sync_interval_seconds: float = Field(default=30, ge=1, allow_inf_nan=False)
+
+    sync_interval_sec: float = Field(default=30, ge=1, allow_inf_nan=False)
+    watchlist_grace_sec: float = Field(
+        default=60, ge=0, allow_inf_nan=False, validation_alias="WATCHLIST_GRACE_SEC"
+    )
+
+    plex_server_url: AnyHttpUrl
+    plex_delete_list: str = Field(min_length=1)
+    scryer_url: AnyHttpUrl
+    scryer_api_key: SecretStr = Field(min_length=1)
+
+    @field_validator("plex_server_url", "scryer_url")
+    @classmethod
+    def validate_service_url(cls, value: AnyHttpUrl) -> AnyHttpUrl:
+        if value.username or value.password or value.query or value.fragment:
+            raise ValueError("Use a base URL without credentials, query parameters, or a fragment")
+        return value
 
 
 def load_settings(logger: logging.Logger) -> Settings:
     """Load settings from environment variables and validate them."""
 
     # Start logging before validation so configuration failures are visible.
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        stream=sys.stdout,
-    )
+    console_handler = setup_console_logging()
 
-    try:
-        settings = Settings()
+    try:  # Load settings from the environment
+        settings = Settings()  # pyright: ignore[reportCallIssue]
     except ValidationError as error:
         # Report validation errors without including their supplied values.
         for issue in error.errors(include_input=False, include_context=False, include_url=False):
@@ -36,10 +49,12 @@ def load_settings(logger: logging.Logger) -> Settings:
             logger.error("%s: %s", field, issue["msg"])
         raise
 
-    # Configure our verbosity without exposing library HTTP/auth diagnostics.
-    logger.setLevel(settings.log_level)
-    logging.getLogger("plexapi").disabled = True
-    logging.getLogger("requests").setLevel(logging.CRITICAL)
-    logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+    # Keep detailed file logs while respecting the requested console verbosity.
+    console_handler.setLevel(settings.log_level)
+    try:
+        setup_file_logging(settings.config_dir)
+    except OSError as error:
+        logger.error("Cannot open the log file in CONFIG_DIR (%s).", type(error).__name__)
+        raise
 
     return settings

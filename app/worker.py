@@ -19,14 +19,14 @@ def run(func: Callable[[Event], None], settings: Settings) -> None:
         # Request a cooperative stop so active work can finish and release its resources.
         for signum in handlers:
             signal.signal(signum, lambda _, __: stop.set())
-        logger.info("Worker started; loop interval is %g seconds.", settings.sync_interval_seconds)
+        logger.info("Worker started; loop interval is %g seconds.", settings.sync_interval_sec)
 
         # Run the work until shutdown is requested.
         while not stop.is_set():
             func(stop)
             if stop.is_set():
                 break
-            stop.wait(settings.sync_interval_seconds)
+            stop.wait(settings.sync_interval_sec)
 
     # Work may unwind early with InterruptedError after shutdown is requested.
     except InterruptedError:

@@ -16,15 +16,29 @@
 
 ## Behavior
 
-- Watchlist addition → Scryer request for the entire exposed movie/show.
-- Watchlist removal → unmonitor.
-- Trash-playlist addition → unmonitor the scope and request deletion.
+- Watchlist addition → request and monitor the entire exposed movie/show in
+  Scryer.
+- Watchlist removal → unmonitor; do not explicitly cancel downloads or delete
+  files.
+- Delete-list addition → unmonitor the scope and request deletion.
 - Process existing contents on every startup, then poll for list changes.
-- Non-auth state is only the last snapshot of each list, held in memory.
-  No persisted membership, activity history, or pending-work journal.
+  Also compare saved snapshots to detect net removals made while stopped.
+- A small Plex change detector compares snapshots and emits item-specific
+  events: watchlist additions/removals and delete-list additions.
+- Watchlist additions have a grace period, tracked by stable item ID. Removal
+  during the grace period cancels the pending addition. Use
+  `WATCHLIST_GRACE_SEC=60` by default, including startup contents. Preserve
+  pending deadlines across restarts and check membership before releasing them.
+- Persist the last snapshots and pending watchlist addition deadlines together
+  in `/config/state.json`. Save atomically after successful event handling;
+  failures retain the previous baseline for retry. No activity history or
+  action journal.
+- Plex is the event source. Query and write to Scryer as needed to handle
+  events; do not build a Scryer snapshot/event loop or a generic event-bus
+  framework.
 - No continuous enforcement, blanket episode resets, or list-priority machinery.
-- Complete trash selections may become season/show operations based on current
-  Plex membership.
+- Complete delete-list selections may become season/show operations based on
+  current Plex membership.
 - Delegate media operations to Scryer/Weaver. Never delete files directly.
 - Future services are not requirements. Confirm behavioral departures first.
 
@@ -40,5 +54,11 @@
 - Every dependency, configuration rule, and paragraph must serve a current need.
 - Judge every addition by lifetime maintenance cost, not ease of writing it.
   If its value is uncertain, ask before adding it.
-- Document usage, not development status, publishing reminders, or hypotheticals.
+- Document usage, not development status, publishing reminders, or
+  hypotheticals. Change README only when needed to configure, run, or use the
+  tool—not automatically after each task. Keep implementation details here or
+  in code.
+- Use Rich console logging and rotating plain-text DEBUG logs under
+  `CONFIG_DIR`, following `machine`'s 10 MiB / three-backup limits. No Rich
+  traceback setup.
 - Keep this file and README consistent. Never log credentials.
