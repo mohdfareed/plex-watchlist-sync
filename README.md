@@ -11,12 +11,13 @@ Plex-driven media management through Scryer:
 Required environment variables:
 
 - `PLEX_SERVER_URL`: Plex server base URL.
-- `PLEX_DELETE_LIST`: name of a regular video playlist, not its ID.
+
 - `SCRYER_URL`: Scryer base URL, without `/graphql`.
 - `SCRYER_API_KEY`: API key with `View` and `ManageTitles` access.
 
 Optional:
 
+- `PLEX_DELETE_LIST`: video playlist name; default `Remove from Library`.
 - `CONFIG_DIR`: authentication, state, and logs; default `/config`.
   Set a writable directory for local runs.
 - `LOG_LEVEL`: console verbosity; default `INFO`.

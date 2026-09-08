@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
 
     plex_server_url: AnyHttpUrl
-    plex_delete_list: str = Field(min_length=1)
+    plex_delete_list: str = Field(default="Remove from Library", min_length=1)
     scryer_url: AnyHttpUrl
     scryer_api_key: SecretStr = Field(min_length=1)
 
