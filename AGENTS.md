@@ -8,7 +8,7 @@
 - No automated tests, test dependencies, or scaffolding unless requested.
 - Use uv and Ruff. Validate with lint/format checks, builds, and manual checks.
 - Compose builds directly from Git. No registry or publishing pipeline.
-- The tool is named `plex-watchlist-sync`; its Python package lives in `app/`.
+- The tool is named `watchlist-sync`; its Python package lives in `app/`.
   Keep container files at `docker/` and use the `python -m app` entrypoint.
 - Docker runs as UID/GID 10001 with persistent authentication in `/config`.
   No media mounts or inbound ports.

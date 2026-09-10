@@ -1,5 +1,5 @@
 [project]
-name = "plex-watchlist-sync"
+name = "watchlist-sync"
 version = "0.1.0"
 description = "Personal Plex watchlist requests and delete-list actions through Scryer."
 readme = "README.md"

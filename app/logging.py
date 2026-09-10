@@ -32,7 +32,7 @@ def setup_file_logging(config_dir: Path) -> None:
     # Match machine's rotation limits so a long-running worker cannot fill the volume.
     config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     handler = RotatingFileHandler(
-        config_dir / "plex-watchlist-sync.log",
+        config_dir / "watchlist-sync.log",
         maxBytes=10 * 1024 * 1024,
         backupCount=3,
         encoding="utf-8",

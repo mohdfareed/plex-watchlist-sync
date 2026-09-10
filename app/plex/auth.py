@@ -46,7 +46,7 @@ def _load_login(directory: Path, session: Session) -> MyPlexJWTLogin:
         oauth=True,
         headers={
             "X-Plex-Client-Identifier": client_id,
-            "X-Plex-Product": "Plex Watchlist Sync",
+            "X-Plex-Product": "Watchlist Sync",
         },
         keypair=(str(private_path), str(public_path)) if all(identity_exists) else (None, None),
         jwtToken=token_path.read_text().strip() if token_path.exists() else None,

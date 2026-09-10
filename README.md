@@ -1,4 +1,4 @@
-# plex-watchlist-sync
+# watchlist-sync
 
 Plex-driven media management through Scryer:
 
@@ -32,7 +32,7 @@ Optional:
 ```
 
 Authorize Plex using the link in the first-run logs. Keep the `/config` volume
-across container updates. File logs: `CONFIG_DIR/plex-watchlist-sync.log`.
+across container updates. File logs: `CONFIG_DIR/watchlist-sync.log`.
 
 For background operation:
 
