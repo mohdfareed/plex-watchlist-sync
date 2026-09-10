@@ -9,14 +9,21 @@ from pydantic import BaseModel, Field, FiniteFloat, ValidationError
 
 from app.plex.models import PlexItem
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# MARK: State and event models
+# =============================================================================
 
 
 class StateError(Exception):
     """A state failure with a message safe to log."""
 
 
-class _State(BaseModel):
+class SyncState(BaseModel):
+    """Persisted list snapshots and pending watchlist deadlines."""
+
     watchlist: dict[str, PlexItem] = Field(default_factory=dict)
     pending: dict[str, FiniteFloat] = Field(default_factory=dict)
     delete_list: dict[str, PlexItem] = Field(default_factory=dict)
@@ -24,19 +31,36 @@ class _State(BaseModel):
 
 @dataclass(frozen=True)
 class PlexEvent:
+    """An item-specific change observed in a Plex list."""
+
     kind: Literal["watchlist_added", "watchlist_removed", "delete_list_added"]
     item: PlexItem
 
 
+@dataclass(frozen=True)
+class PreparedChanges:
+    """A proposed baseline and the events to handle before committing it."""
+
+    state: SyncState
+    events: list[PlexEvent]
+
+
+# =============================================================================
+# MARK: Change detection and persistence
+# =============================================================================
+
+
 class ChangeDetector:
+    """Detect list changes and persist successfully handled snapshots."""
+
     def __init__(self, path: Path) -> None:
-        self.path = path
+        self._path = path
         self.startup = True  # Whether this is the first run.
-        self.state = _State()
+        self._state = SyncState()
 
         # A missing file is a first run; unreadable state must not silently reset history.
         try:
-            self.state = _State.model_validate_json(path.read_text())
+            self._state = SyncState.model_validate_json(self._path.read_text())
         except FileNotFoundError:
             pass
         except OSError, ValidationError:
@@ -50,19 +74,19 @@ class ChangeDetector:
         delete_list: dict[str, PlexItem],
         grace_seconds: float,
         now: float,
-    ) -> tuple[_State, list[PlexEvent]]:
+    ) -> PreparedChanges:
         """Prepare events without consuming them; commit only after handling succeeds."""
         events: list[PlexEvent] = []
-        pending = self.state.pending.copy()
+        pending = self._state.pending.copy()
 
         # Apply observed removals before considering any grace deadline.
-        for item_id in self.state.watchlist.keys() - watchlist.keys():
+        for item_id in self._state.watchlist.keys() - watchlist.keys():
             pending.pop(item_id, None)
-            events.append(PlexEvent("watchlist_removed", self.state.watchlist[item_id]))
+            events.append(PlexEvent("watchlist_removed", self._state.watchlist[item_id]))
 
         # Replay all current entries on startup; otherwise select only newly observed IDs.
         additions = (
-            watchlist.keys() if self.startup else watchlist.keys() - self.state.watchlist.keys()
+            watchlist.keys() if self.startup else watchlist.keys() - self._state.watchlist.keys()
         )
 
         # Start the grace period for new additions without extending saved deadlines on restart.
@@ -85,35 +109,37 @@ class ChangeDetector:
         additions = (
             delete_list.keys()
             if self.startup
-            else delete_list.keys() - self.state.delete_list.keys()
+            else delete_list.keys() - self._state.delete_list.keys()
         )
 
         events.extend(PlexEvent("delete_list_added", delete_list[item_id]) for item_id in additions)
 
         # Stage the next baseline without consuming events; the caller commits after success.
-        return _State(watchlist=watchlist, delete_list=delete_list, pending=pending), events
+        return PreparedChanges(
+            state=SyncState(watchlist=watchlist, delete_list=delete_list, pending=pending),
+            events=events,
+        )
 
-    def commit(self, state: _State) -> None:
+    def commit(self, state: SyncState) -> None:
         """Save successful work atomically, then advance the in-memory baseline."""
-        if self.startup or state != self.state:
+        if self.startup or state != self._state:
             try:
-                self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-                temporary_path = self.path.with_suffix(".tmp")
+                self._path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                temporary_path = self._path.with_suffix(".tmp")
                 temporary_path.write_text(state.model_dump_json(indent=2))
                 temporary_path.chmod(0o600)
-                temporary_path.replace(self.path)
+                temporary_path.replace(self._path)
 
-            # Failed to update sync state.
             except OSError:
                 raise StateError(
                     "Cannot save state.json; previous state was not advanced."
                 ) from None
 
         # Make grace-period scheduling and cancellation visible without an activity journal.
-        for item_id in state.pending.keys() - self.state.pending.keys():
-            logger.info("Watchlist addition waiting for grace period: %s", item_id)
-        for item_id in self.state.pending.keys() - state.watchlist.keys():
-            logger.info("Pending watchlist addition cancelled: %s", item_id)
+        for item_id in state.pending.keys() - self._state.pending.keys():
+            _logger.info("Watchlist addition waiting for grace period: %s", item_id)
+        for item_id in self._state.pending.keys() - state.watchlist.keys():
+            _logger.info("Pending watchlist addition cancelled: %s", item_id)
 
-        self.state = state
+        self._state = state
         self.startup = False

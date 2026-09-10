@@ -14,17 +14,22 @@ from app.plex.models import PlexItem
 from app.scryer import ScryerClient, ScryerError, get_version, list_media_requests, list_titles
 from app.settings import Settings
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# MARK: Synchronization
+# =============================================================================
 
 
 def sync_plex(settings: Settings, stop: Event, changes: ChangeDetector) -> None:
     """Read Plex, prepare events, and inspect Scryer without changing either service."""
     try:
-        watchlist, delete_list = with_authentication(
+        lists = with_authentication(
             settings, lambda account: read_lists(account, settings, stop), stop
         )
     except PlexReadError as error:
-        logger.error("%s", error)
+        _logger.error("%s", error)
         return
 
     # Handle Plex API and network errors.
@@ -33,7 +38,7 @@ def sync_plex(settings: Settings, stop: Event, changes: ChangeDetector) -> None:
             return
 
         # Library exception messages can contain credentials or response bodies.
-        logger.error(
+        _logger.error(
             "Plex poll failed (%s); retrying in %g seconds.",
             type(error).__name__,
             settings.sync_interval_sec,
@@ -41,8 +46,8 @@ def sync_plex(settings: Settings, stop: Event, changes: ChangeDetector) -> None:
         return  # Try again on the next iteration.
 
     # Log the watchlist entries.
-    for item in watchlist.values():
-        logger.info(
+    for item in lists.watchlist.values():
+        _logger.info(
             "%s: %s (%s)",
             item.type,
             item.title,
@@ -50,28 +55,34 @@ def sync_plex(settings: Settings, stop: Event, changes: ChangeDetector) -> None:
         )
 
     # Re-read current membership before releasing additions whose grace period has elapsed.
-    state, events = changes.prepare(watchlist, delete_list, settings.watchlist_grace_sec, time())
+    prepared = changes.prepare(
+        lists.watchlist, lists.delete_list, settings.watchlist_grace_sec, time()
+    )
     if stop.is_set():
         return
 
     # Scryer is a lookup target: inspect it on startup/events, never on its own polling loop.
-    if changes.startup or events:
+    if changes.startup or prepared.events:
         try:
-            targets = {event.item.id: event.item for event in events}
-            targets.update(watchlist)
-            targets.update(delete_list)
+            targets = {event.item.id: event.item for event in prepared.events}
+            targets.update(lists.watchlist)
+            targets.update(lists.delete_list)
             _inspect_scryer(settings, stop, list(targets.values()))
         except ScryerError as error:
-            logger.error("%s Previous Plex state retained for retry.", error)
+            _logger.error("%s Previous Plex state retained for retry.", error)
             return
     if stop.is_set():
         return
 
-    for event in events:
-        logger.info("Plex event %s: %s (id=%s)", event.kind, event.item.title, event.item.id)
-
     # Logging is the event handler at this checkpoint. Failed reads do not consume events.
-    changes.commit(state)
+    for event in prepared.events:
+        _logger.info("Plex event %s: %s (id=%s)", event.kind, event.item.title, event.item.id)
+    changes.commit(prepared.state)
+
+
+# =============================================================================
+# MARK: Scryer inspection
+# =============================================================================
 
 
 def _inspect_scryer(settings: Settings, stop: Event, plex_items: list[PlexItem]) -> None:
@@ -85,14 +96,15 @@ def _inspect_scryer(settings: Settings, stop: Event, plex_items: list[PlexItem])
             raise InterruptedError("Scryer diagnostic read cancelled")
         requests = list_media_requests(client)
 
-    logger.info(
+    _logger.info(
         "Scryer %s: %d managed titles, %d request records visible to this API key.",
         version,
         len(titles),
         len(requests),
     )
+
     for title in titles:
-        logger.info(
+        _logger.info(
             "Scryer title: %s id=%s library=%s facet=%s ids=%s monitored=%s policy=%s files=%d",
             title.name,
             title.id,
@@ -103,8 +115,9 @@ def _inspect_scryer(settings: Settings, stop: Event, plex_items: list[PlexItem])
             title.monitor_type,
             len(title.media_files),
         )
+
         for collection in title.collections:
-            logger.info(
+            _logger.info(
                 "Scryer collection: title=%s id=%s scope=%s/%s "
                 "monitored=%s episodes=%d available=%d",
                 title.id,
@@ -118,8 +131,9 @@ def _inspect_scryer(settings: Settings, stop: Event, plex_items: list[PlexItem])
                     for episode in collection.episodes
                 ),
             )
+
             for episode in collection.episodes:
-                logger.debug(
+                _logger.debug(
                     "Scryer episode: id=%s season=%s episode=%s monitored=%s availability=%s",
                     episode.id,
                     episode.season_number,
@@ -127,8 +141,9 @@ def _inspect_scryer(settings: Settings, stop: Event, plex_items: list[PlexItem])
                     episode.monitored,
                     episode.media_availability.state,
                 )
+
         for media_file in title.media_files:
-            logger.debug(
+            _logger.debug(
                 "Scryer file: id=%s title=%s episode=%s scan=%s",
                 media_file.id,
                 title.id,
@@ -137,7 +152,7 @@ def _inspect_scryer(settings: Settings, stop: Event, plex_items: list[PlexItem])
             )
 
     for request in requests:
-        logger.info(
+        _logger.info(
             "Scryer request: %s id=%s library=%s facet=%s ids=%s "
             "status=%s created_title=%s policy=%s",
             request.title,
@@ -153,6 +168,7 @@ def _inspect_scryer(settings: Settings, stop: Event, plex_items: list[PlexItem])
     # Show exact-ID matches without treating names or download progress as a policy decision.
     for item in plex_items:
         ids = item.show_external_ids if item.type == "episode" else item.external_ids
+
         # TMDB movie and series IDs occupy separate namespaces.
         facets = {"movie"} if item.type == "movie" else {"tv", "anime"}
         title_ids = [
@@ -167,7 +183,8 @@ def _inspect_scryer(settings: Settings, stop: Event, plex_items: list[PlexItem])
             if request.facet in facets
             and any(ids.get(entry.source) == entry.value for entry in request.external_ids)
         ]
-        logger.info(
+
+        _logger.info(
             "Plex identity: %s id=%s guid=%s ids=%s season=%s episode=%s titles=%s requests=%s",
             item.title,
             item.id,
@@ -178,5 +195,6 @@ def _inspect_scryer(settings: Settings, stop: Event, plex_items: list[PlexItem])
             title_ids,
             request_ids,
         )
+
         if not ids:
-            logger.warning("Plex item %s has no external IDs; matching is unresolved.", item.id)
+            _logger.warning("Plex item %s has no external IDs; matching is unresolved.", item.id)

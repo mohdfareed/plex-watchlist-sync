@@ -9,29 +9,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.logging import setup_console_logging, setup_file_logging
 
-
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(hide_input_in_errors=True)
-
-    config_dir: Path = Path("/config")
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
-
-    sync_interval_sec: float = Field(default=30, ge=1, allow_inf_nan=False)
-    watchlist_grace_sec: float = Field(
-        default=60, ge=0, allow_inf_nan=False, validation_alias="WATCHLIST_GRACE_SEC"
-    )
-
-    plex_server_url: AnyHttpUrl
-    plex_delete_list: str = Field(default="Remove from Library", min_length=1)
-    scryer_url: AnyHttpUrl
-    scryer_api_key: SecretStr = Field(min_length=1)
-
-    @field_validator("plex_server_url", "scryer_url")
-    @classmethod
-    def validate_service_url(cls, value: AnyHttpUrl) -> AnyHttpUrl:
-        if value.username or value.password or value.query or value.fragment:
-            raise ValueError("Use a base URL without credentials, query parameters, or a fragment")
-        return value
+# =============================================================================
+# MARK: Configuration loading
+# =============================================================================
 
 
 def load_settings(logger: logging.Logger) -> Settings:
@@ -58,3 +38,34 @@ def load_settings(logger: logging.Logger) -> Settings:
         raise
 
     return settings
+
+
+# =============================================================================
+# MARK: Settings and validation
+# =============================================================================
+
+
+class Settings(BaseSettings):
+    """Validated service endpoints, credentials, and worker configuration."""
+
+    model_config = SettingsConfigDict(hide_input_in_errors=True)
+
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    config_dir: Path = Path("/config")
+
+    sync_interval_sec: float = Field(default=30, ge=1, allow_inf_nan=False)
+    watchlist_grace_sec: float = Field(
+        default=60, ge=0, allow_inf_nan=False, validation_alias="WATCHLIST_GRACE_SEC"
+    )
+
+    plex_server_url: AnyHttpUrl
+    plex_delete_list: str = Field(default="Remove from Library", min_length=1)
+    scryer_url: AnyHttpUrl
+    scryer_api_key: SecretStr = Field(min_length=1)
+
+    @field_validator("plex_server_url", "scryer_url")
+    @classmethod
+    def _validate_service_url(cls, value: AnyHttpUrl) -> AnyHttpUrl:
+        if value.username or value.password or value.query or value.fragment:
+            raise ValueError("Use a base URL without credentials, query parameters, or a fragment")
+        return value

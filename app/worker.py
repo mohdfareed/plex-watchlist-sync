@@ -7,7 +7,12 @@ from typing import Callable
 
 from app.settings import Settings
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# MARK: Worker lifecycle
+# =============================================================================
 
 
 def run(func: Callable[[Event], None], settings: Settings) -> None:
@@ -19,7 +24,7 @@ def run(func: Callable[[Event], None], settings: Settings) -> None:
         # Request a cooperative stop so active work can finish and release its resources.
         for signum in handlers:
             signal.signal(signum, lambda _, __: stop.set())
-        logger.info("Worker started; loop interval is %g seconds.", settings.sync_interval_sec)
+        _logger.info("Worker started; loop interval is %g seconds.", settings.sync_interval_sec)
 
         # Run the work until shutdown is requested.
         while not stop.is_set():
@@ -36,4 +41,4 @@ def run(func: Callable[[Event], None], settings: Settings) -> None:
     finally:  # Cleanup.
         for signum, handler in handlers.items():
             signal.signal(signum, handler)
-        logger.info("Worker stopped.")
+        _logger.info("Worker stopped.")

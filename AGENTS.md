@@ -44,11 +44,42 @@
 
 ## Code and documentation
 
-- Organize by concrete responsibility. No speculative interfaces or wrappers.
+- Check existing patterns before writing code. Organize by concrete
+  responsibility; repair existing mechanisms before adding replacements.
+- Keep code and operational surface minimal: no speculative interfaces,
+  trivial wrappers, unnecessary callbacks, progress bars, or reminder scripts.
 - Keep `worker.py` limited to app lifecycle plumbing. Put sync business logic in
   `sync.py` and wire it into the worker in `__main__.py`.
-- Use descriptive names, type hints, guard clauses, and a readable happy path.
-- Separate meaningful steps with whitespace and recipe-style comments.
+- Put public entrypoints and interfaces before private helpers and
+  implementation details so readers can see how to use a module first.
+  Keep definition-time dependencies (such as base classes and validators)
+  before their consumers; do not add indirection just to force this order.
+- Keep the happy path flat throughout control flow. Handle alternatives,
+  skips, and failures first with guards, then proceed without unnecessary
+  nesting or `else`. Preserve cleanup and shared follow-up work.
+- Use descriptive names and readable type hints. Use named models for
+  structured results rather than opaque positional tuples; use type aliases
+  only to shorten type expressions.
+- Prefix module-private loggers, helpers, classes, and constants with `_`.
+  Keep intentionally shared interfaces public; do not access another module's
+  private implementation in application code.
+- Document public functions, classes, and properties with concise docstrings.
+  Use comments, not docstrings, for non-obvious private implementation details.
+- Keep runtime references rename-safe with symbols or framework metadata and
+  explicit package attributes. Keep external contracts literal; do not add
+  a naming framework or dynamic export machinery.
+- Separate meaningful steps with whitespace and brief, action-oriented recipe
+  comments. Do not narrate individual statements or add sections needlessly.
+- Use `MARK` sections throughout substantive modules to expose their public
+  interface and group distinct responsibilities, not just in selected files.
+  Use three comment lines: an `=` border, `# MARK: <Title>`, and the same
+  border. Borders are exactly 79 characters, including indentation and
+  comment prefix. Skip empty ceremony in docstring-only or re-export modules.
+  Ordinary recipe comments and Markdown headings need no borders.
+- Keep substantive Python in normal `.py` files, not shell strings, including
+  one-off diagnostics. Preserve existing script phases, progress messages,
+  command choices, and setup/update behavior during focused changes.
+- Keep one-use static data inline unless extraction adds logic or real reuse.
 - Keep code within 100 columns and Markdown within 80. Keep files small.
 - Prefer service defaults. Mark provisional policy with `# REVIEW:` comments.
 - Every dependency, configuration rule, and paragraph must serve a current need.
@@ -61,4 +92,13 @@
 - Use Rich console logging and rotating plain-text DEBUG logs under
   `CONFIG_DIR`, following `machine`'s 10 MiB / three-backup limits. No Rich
   traceback setup.
-- Keep this file and README consistent. Never log credentials.
+- Keep service output in the existing logging setup, not a separate reporting
+  framework. Use concise failure summaries and actionable recovery context;
+  retain safe technical details in plain-text logs. Never embed Rich markup
+  in log messages or log credentials. Preserve complete URLs and single-line
+  records in non-interactive console output; leave external output untouched.
+- If tests are explicitly requested, keep them proportionate and focused on
+  business decisions, data preservation, permissions, and failure handling.
+  Do not test UI wording/layout, framework behavior, or personal configuration.
+  Reuse existing checks; do not retain exploratory coverage by default.
+- Keep this file and README consistent.

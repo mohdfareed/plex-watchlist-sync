@@ -10,12 +10,18 @@ from app.settings import load_settings
 from app.sync import sync_plex
 from app.worker import run
 
-logger = logging.getLogger(__package__)
+_logger = logging.getLogger(__package__)
+
+
+# =============================================================================
+# MARK: Application entrypoint
+# =============================================================================
 
 
 def main() -> int:
+    """Initialize and run the sync worker, returning a process exit status."""
     try:  # Load and validate settings.
-        settings = load_settings(logger)
+        settings = load_settings(_logger)
     except ValidationError, OSError:
         return 1
 
@@ -25,17 +31,17 @@ def main() -> int:
 
     # Report actionable authentication/state failures without exposing credentials.
     except (AuthenticationError, StateError) as error:
-        logger.error("%s", error)
+        _logger.error("%s", error)
         return 1
 
     # Report fatal errors without exposing request URLs, tokens, or response bodies.
     except Exception as error:
-        logger.error("Worker failed (%s).", type(error).__name__)
+        _logger.error("Worker failed (%s).", type(error).__name__)
         return 1
 
     # Cover Ctrl+C outside the worker's signal-handling window.
     except KeyboardInterrupt:
-        logger.info("Stopped.")
+        _logger.info("Stopped.")
         return 130
 
     return 0  # Controlled shutdown without error.

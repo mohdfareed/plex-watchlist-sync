@@ -6,20 +6,29 @@ from typing import Self
 from pydantic import BaseModel, SecretStr, ValidationError
 from requests import RequestException, Session
 
+# =============================================================================
+# MARK: GraphQL client
+# =============================================================================
+
 
 class ScryerError(Exception):
     """A safe diagnostic message without remote bodies, URLs, or credentials."""
 
 
 class ScryerClient:
+    """Run authenticated GraphQL reads with validated responses and safe errors."""
+
     def __init__(self, graphql_url: str, api_key: SecretStr) -> None:
+        """Create a session using only the configured endpoint and API key."""
         self._url = graphql_url
         self._api_key = api_key
         self._session = Session()
+
         # Use only the configured API key, not implicit netrc credentials.
         self._session.trust_env = False
 
     def __enter__(self) -> Self:
+        """Return this client for use within a managed session."""
         return self
 
     def __exit__(
@@ -28,9 +37,11 @@ class ScryerClient:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
+        """Close the HTTP session when leaving the context."""
         self._session.close()
 
-    def _query[T: BaseModel](self, query: str, variables: dict[str, int], model: type[T]) -> T:
+    def query[T: BaseModel](self, query: str, variables: dict[str, int], model: type[T]) -> T:
+        """Validate complete GraphQL data as model, raising ScryerError on failure."""
         # Bound requests and reject redirects so credentials stay at the configured endpoint.
         try:
             with self._session.post(
@@ -45,6 +56,8 @@ class ScryerClient:
                         f"Scryer HTTP request failed (status {response.status_code})."
                     )
                 payload = response.json()
+
+        # Handle session exceptions.
         except RequestException:
             raise ScryerError(
                 "Scryer HTTP request failed; check connectivity and the API key."
